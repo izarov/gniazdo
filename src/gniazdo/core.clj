@@ -6,7 +6,8 @@
            (org.eclipse.jetty.util.ssl SslContextFactory)
            (org.eclipse.jetty.websocket.api WebSocketListener
                                             RemoteEndpoint
-                                            Session)))
+                                            Session)
+           (javax.net.ssl SSLContext)))
 
 (set! *warn-on-reflection* 1)
 
@@ -103,9 +104,11 @@
   (^WebSocketClient
     [] (WebSocketClient.))
   (^WebSocketClient
-    [^URI uri]
+    [^URI uri & {:keys [ssl-context]}]
     (if (= "wss" (.getScheme uri))
-      (WebSocketClient. (SslContextFactory.))
+      (let [ssl-context-factory (SslContextFactory.)]
+        (when ssl-context (.setSslContext ssl-context-factory ssl-context))
+        (WebSocketClient. ssl-context-factory))
       (WebSocketClient.))))
 
 (defn- connect-with-client
