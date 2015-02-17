@@ -104,12 +104,16 @@
   (^WebSocketClient
     [] (WebSocketClient.))
   (^WebSocketClient
-    [^URI uri & {:keys [ssl-context]}]
-    (if (= "wss" (.getScheme uri))
-      (let [ssl-context-factory (SslContextFactory.)]
-        (when ssl-context (.setSslContext ssl-context-factory ssl-context))
-        (WebSocketClient. ssl-context-factory))
-      (WebSocketClient.))))
+    [uri & {:keys [ssl-context]}]
+    (let [^URI uri' 
+          (if (instance? String uri) 
+           (URI. uri)
+           uri)]
+      (if (= "wss" (.getScheme uri'))
+        (let [ssl-context-factory (SslContextFactory.)]
+          (when ssl-context (.setSslContext ssl-context-factory ssl-context))
+          (WebSocketClient. ssl-context-factory))
+        (WebSocketClient.)))))
 
 (defn- connect-with-client
   "Connect to a WebSocket using the supplied `WebSocketClient` instance."
@@ -118,6 +122,7 @@
          cleanup (::cleanup opts)
          result-promise (promise)
          listener (listener opts result-promise)]
+     (.start client)
      (.connect client listener uri request)
      (let [session (deref-session result-promise)]
        (reify Client
