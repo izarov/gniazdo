@@ -6,7 +6,8 @@
                                    on-receive
                                    run-server
                                    send!]])
-  (:import [java.util.concurrent Future]))
+  (:import [java.util.concurrent Future]
+           [org.eclipse.jetty.websocket.api Session]))
 
 (declare ^:dynamic *recv*)
 
@@ -100,3 +101,39 @@
     (close conn)
     (with-timeout (.acquire sem))
     (is (= @result :closed))))
+
+(deftest on-error-test
+  (testing "invalid arity"
+    (testing ":on-connect"
+      (let [result (promise)
+            conn (connect
+                   uri
+                   :on-error (fn on-error [ex] (deliver result ex))
+                   :on-connect (fn on-connect [_ _ _ _ _]))]
+        (is (instance? clojure.lang.ArityException
+                       (with-timeout @result)))
+        (close conn)))
+    (testing ":on-receive"
+      (with-redefs [*recv* (fn [_ conn msg] (send! conn ""))]
+        (let [result (promise)
+              conn (connect
+                     uri
+                     :on-error (fn on-error [ex] (deliver result ex))
+                     :on-receive (fn on-receive [_ _ _ _ _]))]
+          (send-msg conn "")
+          (is (instance? clojure.lang.ArityException
+                         (with-timeout @result)))
+          (close conn))))))
+
+(deftest subprotocols-test
+  (let [result (atom nil)
+        sem (java.util.concurrent.Semaphore. 0)
+        conn (connect
+              uri
+              :subprotocols ["wamp"]
+              :on-connect (fn [^Session session]
+                            (reset! result (.. session getUpgradeRequest getSubProtocols))
+                            (.release sem)))]
+    (with-timeout (.acquire sem))
+    (is (= @result ["wamp"]))
+    (close conn)))
